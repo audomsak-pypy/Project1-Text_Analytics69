@@ -1,205 +1,286 @@
 # Project1-Text_Analytics69
 
-**SC663402 Data Warehouse and Big Data Analytics · ทีม "เบื่อเกี้ยวอยากเคี้ยวข้าว" · งานกลุ่ม 25 คะแนน**
-ส่ง อังคาร 6 ต.ค. 2569 · นำเสนอ พุธ 7 ต.ค. 2569 · [Notebook (Colab)](https://colab.research.google.com/drive/1AdtYKdPrBms4WbnnKqvAduElpq7eHLL4?usp=sharing) · ข้อมูล: `corpus.jsonl`
+# Text Analytics for Business Insight
 
-| สมาชิก | ส่วนที่รับผิดชอบ |
+**วิชา SC663402 Data Warehouse and Big Data Analytics** · ทีม *เบื่อเกี้ยวอยากเคี้ยวข้าว*
+ส่งงาน: อังคาร 6 ต.ค. 2569 · นำเสนอ: พุธ 7 ต.ค. 2569 (10 นาที + Q&A)
+
+โครงงานนี้เปลี่ยน **ข้อความดิบ** ให้เป็น **ข้อเสนอที่ทีมธุรกิจนำไปทำต่อได้** ใน 2 ส่วน:
+**Part 2** วิเคราะห์เสียงลูกค้าจากรีวิว Amazon และ **Part 3** สร้างชุดข้อมูลเองด้วย API แล้วหา Insight
+
+---
+
+## 1. ภาพรวม
+
+| | Part 2 — Voice of Customer | Part 3 — Data Collection Robot |
+|---|---|---|
+| **โจทย์** | Brief B3 (ทีม Marketing): ลูกค้าที่ประทับใจพูดถึงอะไร เอาไปทำ Ad Copy / Claim อย่างไร | หัวข้อบน Hacker News กลุ่มใด (จัดด้วย keyword) มี engagement ต่างกันอย่างไร |
+| **ข้อมูล** | Amazon Reviews 2023 หมวด `Digital_Music` สุ่ม 20,000 รีวิว | Hacker News Official API (Top Stories 250 รายการ) |
+| **1 record คือ** | 1 รีวิว | 1 โพสต์ข่าว |
+| **เทคนิค** | Regex Aspect Features, Rate Comparison, Genre Segmentation, Reality Check | Keyword-based Classification, Median Engagement Comparison |
+| **ข้อมูลหลังคลีน** | 19,962 รีวิว | 241 โพสต์ (เกณฑ์ ≥ 200 ผ่าน) |
+| **ผลลัพธ์หลัก** | Insight Card 2 ใบ | Insight Card 1 ใบ |
+
+---
+
+## 2. ทีมและการแบ่งงาน
+
+| ส่วน | งาน | ผู้รับผิดชอบ |
+|---|---|---|
+| Part 2 | รีวิวที่สุ่มมาอย่างเหมาะสม | นาวสาวประภาพร กุลโต |
+| Part 2 | Text Features | นาวสาวณนัดดา รัตนาตรี |
+| Part 2 | Insight Card | นาวสาวสุกัญญา อุดมกัน |
+| Part 2 | Reality Check | นายอุดมศักดิ์ พระเสนา |
+| Part 2 | กราฟหลักสำหรับสื่อสาร | นาวสาวอาทิติญา ชาชัย |
+| Part 3 | ข้อมูลที่ทีมเก็บเองด้วย API | นายเยี่ยมภพ ใบโพธิ์ |
+
+---
+
+## 3. โครงสร้างไฟล์
+
+```
+├── Project1_Text_Analytics69_Teams.ipynb        # Part 2 (+ หัวข้อโจทย์)
+├── Project1_Text_Analytics69_Teams_Part3.ipynb  # Part 3
+├── corpus.jsonl                                 # ผลลัพธ์ Part 3 หลังคลีน (241 records)
+├── images/                                      # กราฟที่ใช้ใน README
+└── README.md
+```
+
+---
+
+## 4. วิธีรัน (Google Colab)
+
+1. เปิด Notebook ใน Colab แล้วรันเซลล์ตามลำดับจากบนลงล่าง
+2. **Part 2** ต้องต่ออินเทอร์เน็ต เพื่อดาวน์โหลดไฟล์ review (78.8 MB) และ metadata (67.1 MB) จาก Hugging Face
+3. **Part 3** ต้องรัน 3.1 (เก็บข้อมูล) → 3.2 (คลีน + บันทึก `corpus.jsonl`) → 3.3 (วิเคราะห์) ตามลำดับ เพราะ 3.3 อ่านข้อมูลจาก `corpus.jsonl`
+4. Part 2 กำหนด `RANDOM_SEED = 42` และ `SAMPLE_N = 20_000` ไว้ที่เซลล์ setup ทำให้ผลสุ่มซ้ำได้
+
+**Library หลัก:** `pandas`, `numpy`, `matplotlib`, `seaborn`, `nltk`, `huggingface_hub`
+
+---
+
+## 5. แนวคิดเชิงข้อมูล (เชื่อมกับเนื้อหาวิชา)
+
+```mermaid
+flowchart LR
+    A[Extract<br/>HF dataset / HN API] --> B[Transform<br/>join · dedupe · clean · regex features]
+    B --> C[Load<br/>DataFrame / corpus.jsonl]
+    C --> D[Analytics<br/>rate comparison · median]
+    D --> E[Insight Card]
+```
+
+| ขั้นตอน | Part 2 | Part 3 |
+|---|---|---|
+| **Extract** | ดาวน์โหลดไฟล์ JSONL + สุ่มแบบ Reservoir Sampling | เรียก API ทีละ item พร้อมหน่วงเวลา 0.1 วินาที |
+| **Transform** | Join ด้วย `parent_asin`, ลบรีวิวซ้ำ, ล้าง HTML/URL, สร้าง feature | ตรวจ missing / ซ้ำ / ชื่อสั้นเกิน / ค่าไม่ถูกต้อง |
+| **Load** | `df_joined` พร้อม feature | `corpus.jsonl` (ใช้ซ้ำโดยไม่ต้องเรียก API ใหม่) |
+| **Analytics** | เปรียบเทียบสัดส่วนการพูดถึง (Mention Rate) | เปรียบเทียบค่ามัธยฐาน (Median) ของ score / comments |
+
+---
+
+# Part 2 — Voice of Customer (Digital Music)
+
+## 6. โจทย์ธุรกิจ
+
+**ผู้ตัดสินใจ:** ทีม Marketing — เลือกจุดขาย คำโปรย และ Claim สำหรับแคมเปญ Digital Music
+**ความเสี่ยงถ้าตัดสินใจผิด:** เสียค่าโฆษณา, เสียความน่าเชื่อถือจาก Claim เกินจริง, Conversion ต่ำ
+**สมมติฐานตั้งต้น:** ลูกค้าที่ให้ดาวสูงไม่ได้ชมเรื่องราคา แต่เน้น *Nostalgia* และ *Sound Quality*
+
+## 7. การเตรียมข้อมูล
+
+| รายการ | ผลลัพธ์ |
 |---|---|
-| ประภาพร กุลโต | `<ระบุ>` |
-| ณนัดดา รัตนาศรี | `<ระบุ>` |
-| สุกัญญา อุดมกัน | `<ระบุ>` |
-| อุดมศักดิ์ พระเสนา | `<ระบุ>` |
-| อาทิติญา ชาชัย | `<ระบุ>` |
-| เยี่ยมภพ ใบโพธิ์ | `<ระบุ>` |
+| รีวิวที่สุ่ม (seed 42) | 20,000 |
+| Metadata สินค้าทั้งหมด | 70,537 |
+| Join สำเร็จด้วย `parent_asin` | 20,000 / 20,000 (100%) |
+| รีวิวซ้ำที่ลบ (`user_id` + `timestamp` + `asin`) | 38 |
+| **ข้อมูลที่ใช้วิเคราะห์** | **19,962** |
+| `price` ว่าง (ก่อนลบซ้ำ) | 7,583 แถว |
+| มี `description` | 10,126 / 19,962 |
+| มี `store` | 19,000 / 19,962 |
 
-## สารบัญ
+**ข้อมูลนี้เป็นตัวแทนของ:** รีวิวหมวด Digital_Music บน Amazon ตามชุดข้อมูลปี 2023
+**ไม่เป็นตัวแทนของ:** หมวดสินค้าอื่น และรีวิวนอกชุดข้อมูลนี้
 
-1. [สรุป](#s1)
-2. [3.1 แหล่งข้อมูลและวิธีเก็บ](#s2)
-3. [3.2 ตรวจคุณภาพข้อมูล](#s3)
-4. [3.3 หา Insight](#s4) — เทคนิค · ผลลัพธ์ · กราฟ · Insight Summary
-5. [3.4 Insight Card](#s5)
-6. [ข้อจำกัด](#s6)
-7. [แผนที่ Notebook ↔ README](#s7)
-8. [วิธีรันซ้ำและเช็คลิสต์ก่อนส่ง](#s8)
+## 8. สำรวจข้อมูล (EDA)
+
+<img width="893" height="539" alt="part2_voc_phrases (1)" src="https://github.com/user-attachments/assets/80362d07-2fbb-4bb4-97f8-f9d26a08572e" />
+
+
+| สิ่งที่พบ | ตัวเลข | ใช้ต่ออย่างไร |
+|---|---|---|
+| รีวิว 5 ดาว | Verified 79.8% · Non-Verified 70.4% | รีวิวส่วนใหญ่เป็นบวก จึงเปรียบเทียบกับกลุ่มดาวต่ำควบคู่กัน |
+| Helpful vote เฉลี่ย (รีวิว 4–5 ดาว) | Non-Verified 1.83 · Verified 0.72 | ใช้ Helpful vote เป็นตัวชี้วัด engagement ไม่ใช่ตัวยืนยันผู้ซื้อจริง |
+
+> เป็นการเปรียบเทียบเชิงพรรณนา ยังไม่ได้ทดสอบนัยสำคัญทางสถิติ
+
+## 9. Text Features
+
+**Preprocessing:** รวม title + text → decode HTML → ลบ URL/HTML tag → ปรับช่องว่าง → แปลงเป็นตัวพิมพ์เล็ก
+
+| Feature | วิธีสร้าง | ใช้ตอบอะไร |
+|---|---|---|
+| `review_length` | จำนวนคำใน review text | ควบคุมผลของความยาวรีวิว |
+| `mention_sound` | Regex (1/0) เช่น *sound quality, crystal clear, remaster* | ลูกค้าพูดถึงคุณภาพเสียงหรือไม่ |
+| `mention_nostalgia` | Regex (1/0) เช่น *nostalgia, takes me back, reminds me of* | ลูกค้าพูดถึงความหลังหรือไม่ |
+| `mention_value` | Regex (1/0) เช่น *worth the money, good value* | ลูกค้าพูดถึงความคุ้มค่าหรือไม่ |
+| `inferred_genre` | Regex จากข้อมูลสินค้า → 6 กลุ่ม | เปรียบเทียบข้อความการตลาดรายกลุ่มเพลง |
+
+## 10. ผลวิเคราะห์
+
+### 10.1 รีวิวบวก vs ลบ (Positive ≥ 4★ / Negative ≤ 2★)
+
+| Aspect | Positive (n = 17,602) | Negative (n = 1,368) |
+|---|---:|---:|
+| Sound Quality | 5.2% (912) | 7.5% (102) |
+| **Nostalgia** | **4.1% (720)** | **1.0% (13)** |
+| Value for Money | 4.1% (721) | 5.9% (81) |
+
+ค่าเฉลี่ยดาวของรีวิวที่พูดถึง aspect นั้น เทียบกับที่ไม่พูดถึง: Sound **4.37** vs 4.55 (n = 1,100) · Nostalgia **4.75** vs 4.53 (n = 757) · Value **4.39** vs 4.55 (n = 846)
+
+### 10.2 รีวิวที่ได้รับ Helpful vote สูง (≥ 5) vs ทั่วไป (< 5)
+
+<img width="1067" height="647" alt="part2_impact_contrast" src="https://github.com/user-attachments/assets/137fffa3-ca9c-4a83-9add-06a9d8dfeb9b" />
+
+| Aspect | High Impact (n = 1,087) | General (n = 18,875) | ต่าง |
+|---|---:|---:|---:|
+| **Sound Quality** | **15.2%** | 5.0% | **+10.2 pp** |
+| Value for Money | 9.3% | 3.9% | +5.4 pp |
+| Nostalgia | 6.5% | 3.6% | +2.9 pp |
+
+### 10.3 แยกตามกลุ่มเพลง
+
+<img width="1528" height="707" alt="part2_genre_message_fit" src="https://github.com/user-attachments/assets/b7b581a4-f07a-4da8-ba94-2073d7409bbc" />
+
+
+| Genre (inferred) | n | Nostalgia | Sound | Value |
+|---|---:|---:|---:|---:|
+| General / Mainstream | 15,694 | 3.8% | 5.3% | 4.1% |
+| Classic Rock / Oldies | 1,718 | 6.0% | **8.8%** | 4.7% |
+| Classical / Jazz | 1,252 | 3.7% | 7.7% | 5.7% |
+| K-Pop / Asian Pop | 773 | 0.1% | 0.4% | 4.3% |
+| Dance / R&B / Electronic | 463 | 1.9% | 4.1% | 1.9% |
+| Audiobook / Spoken Word | 62 ⚠️ | 1.6% | 0.0% | 3.2% |
+
+## 11. Reality Check
+
+| ทดสอบ | ผล | สรุป |
+|---|---|---|
+| **Verified vs Non-Verified** | Non-Verified พูดถึงทุก aspect สูงกว่า (Sound 8.3% vs 4.5%) แต่ลำดับเหมือนกัน: Sound > Value > Nostalgia | Pattern หลักไม่ได้มาจากกลุ่มใดกลุ่มเดียว |
+| **ขนาดตัวอย่างรายกลุ่ม (n ≥ 100)** | 5 จาก 6 genre ผ่าน; Audiobook มีเพียง 62 | ไม่ใช้ Audiobook เป็นหลักฐานจัดงบโฆษณา |
+
+<img width="945" height="587" alt="part2_reality_check_verified" src="https://github.com/user-attachments/assets/0eace37d-453d-4086-8fd4-aae8a5a04d53" />
+
+
+## 12. Insight Cards
+
+### Insight Card 1 — Voice of Customer
+
+<img width="989" height="589" alt="part2_eda_rating_by_verified (1)" src="https://github.com/user-attachments/assets/b6e64093-2b1c-4f20-ab1d-a13708b1bb35" />
+
+
+> **Insight:** "sound quality" และ "great sound" พบในรีวิวบวก 1.27% และ 0.56% (วลีที่พบสูงสุดใน 6 วลีที่ตรวจ)
+> **หลักฐาน:** n = 17,602; พบ 224 และ 99 รีวิวตามลำดับ (กราฟด้านบน)
+> **So what:** ใช้ภาษาที่ลูกค้าใช้จริงทำ Marketing Message ได้
+> **Action:** Copywriter ใช้ "Sound Quality / Great Sound" ทำ Ad Headline และ A/B Test CTR ภายใน 2 สัปดาห์
+> **ความมั่นใจ:** สูงสำหรับการระบุวลีของลูกค้า แต่ยังไม่ยืนยันว่า Sound Quality เป็นสาเหตุของการซื้อ
+
+### Insight Card 2 — Category-to-Message Fit
+
+> **Insight:** กลุ่ม Classic Rock / Oldies พูดถึง Sound Quality 8.8% และ Nostalgia 6.0% ซึ่งสูงที่สุดในทั้ง 2 aspect เมื่อเทียบกับ genre อื่น
+> **หลักฐาน:** n = 1,718; Value for Money 4.7% (ตาราง 10.3)
+> **So what:** ข้อความ Sound Quality + Nostalgia น่าจะเหมาะกับกลุ่มนี้
+> **Action:** ทำ Ad Copy แยก Segment แล้ว A/B Test กับ Generic Message วัด CTR / Conversion
+> **ความมั่นใจ:** ปานกลาง — เป็น pattern เชิงพรรณนา และ Genre จัดกลุ่มจาก Metadata ด้วย Regex
+
+## 13. ข้อจำกัด Part 2
+
+- Feature เป็น Regex ครอบคลุมเฉพาะวลีที่กำหนด อาจพลาดคำพูดอื่นที่สื่อความหมายเดียวกัน
+- อัตราการพูดถึงของแต่ละวลีต่ำ (วลีเดี่ยวไม่ถึง 1.3%) จึงควรใช้เป็น *ตัวเลือกให้ทดสอบ A/B* ไม่ใช่ข้อพิสูจน์
+- ผลเป็นความสัมพันธ์ ไม่ใช่เหตุและผล (High Impact พูดถึง aspect บ่อยกว่า ≠ aspect ทำให้ได้ vote)
+- ยังไม่ได้ควบคุมความยาวรีวิวและอายุของรีวิวในการเปรียบเทียบ
+- `inferred_genre` เป็นการอนุมาน ไม่ใช่ genre ที่ระบุโดยตรง และ 78.6% ตกอยู่ในกลุ่ม General / Mainstream
 
 ---
-<a id="s1"></a>
-## 1. สรุป
 
-เก็บหัวข้อโพสต์จาก **Hacker News** ผ่าน **Algolia Search API** (คำค้น `politics`) เพื่อตอบว่า *ข่าวการเมืองประเภทไหนทำให้คนสาย Tech คอมเมนต์และโหวตมากที่สุด* ดึงได้ 250 โพสต์ เหลือ **247** หลัง clean (ผ่านเกณฑ์ขั้นต่ำ 200) แล้วจัดกลุ่มด้วย keyword และเทียบ engagement ด้วยมัธยฐาน
+# Part 3 — Data Collection Robot
 
-**ที่พบ:** กลุ่ม *Technology / law* (n = 22) มีมัธยฐานคอมเมนต์ 52.5 สูงกว่า *Other / unclear* (34.0, n = 217) ราว 1.5 เท่า แต่กลุ่มอื่นมีตัวอย่างน้อยมาก และ 87.9% ของโพสต์จัดกลุ่มไม่ได้ จึงถือเป็น **สมมติฐานตั้งต้น** ยังไม่ใช่ข้อสรุป
+## 14. โจทย์และการเก็บข้อมูล
 
-| Raw | Final | ช่วงเวลา | กลุ่มมัธยฐานคอมเมนต์สูงสุด (n ≥ 20) |
-|---:|---:|---|---|
-| 250 | **247** (98.8%) | 2008-03-07 – 2026-08-23 | Technology / law · 52.5 |
-
----
-
-<a id="s2"></a>
-## 2. Part 3.1 — แหล่งข้อมูลและวิธีเก็บ
+**คำถาม:** หัวข้อข่าวบน Hacker News กลุ่มใด (เศรษฐกิจ / กฎหมาย-เทคโนโลยี / ระหว่างประเทศ) มีระดับ engagement ต่างกันอย่างไร
+**ผู้ใช้ผลวิเคราะห์:** สำนักข่าว, Tech Blogger, ทีมนโยบายสาธารณะ — ใช้เลือกประเด็นคอนเทนต์
+**1 record คือ:** 1 โพสต์ข่าวบน Hacker News
 
 | หัวข้อ | รายละเอียด |
 |---|---|
-| คำถาม | ข่าวการเมืองประเภทใด (นโยบายเศรษฐกิจ / กฎหมายเทคโนโลยี / ความสัมพันธ์ระหว่างประเทศ) ที่ได้ engagement จากคนสาย Tech มากที่สุด |
-| ผู้ใช้ผลวิเคราะห์ | สำนักข่าว, Tech Blogger, ทีมนโยบายสาธารณะ — ใช้เลือกประเด็นคอนเทนต์ |
-| **1 record** | 1 โพสต์หัวข้อข่าวการเมืองบน Hacker News |
-| วิธีเก็บ | API (1 วิธี ตามโจทย์) |
-| API | `hn.algolia.com/api/v1/search` · `query=politics` · `tags=story` · `hitsPerPage=250` · ไม่ใช้ key · เรียก 1 ครั้ง |
+| วิธีเก็บ | API (HN Official Firebase API) — `topstories` 250 รายการแรก แล้วดึงรายละเอียดทีละ item |
+| เก็บเฉพาะ | `type = story` ที่มี title |
+| ความรับผิดชอบ | ใช้ API สาธารณะ, หน่วงเวลา 0.1 วินาที/คำขอ, ไม่ผ่าน login / CAPTCHA / paywall |
+| Field ที่ใช้วิเคราะห์ | `doc_id`, `text` (หัวข้อ), `score`, `n_comments`, `published_at` |
+| Field อื่นที่เก็บ | `url`, `source` |
 
-**Fields**
+## 15. คุณภาพข้อมูล
 
-| Field | มาจาก | ใช้ทำอะไร |
-|---|---|---|
-| `doc_id` | `objectID` | ตรวจซ้ำ |
-| `text` | `title` | ตรวจซ้ำ/สั้น และจัดกลุ่ม theme |
-| `score` | `points` | มัธยฐานคะแนน |
-| `n_comments` | `num_comments` | ตัวแทนระดับการถกเถียง |
-| `published_at` | `created_at` | ตรวจวันที่ และช่วงเวลาที่ครอบคลุม |
-| `author`, `url`, `source` | `author`, `url`, `algolia_hn` | เก็บไว้อ้างอิง ไม่ใช้วิเคราะห์ |
+| ตรวจสอบ | จำนวน |
+|---|---:|
+| พยายามเก็บ | 250 |
+| ดึงได้จริง | 249 |
+| Missing title / ID | 0 |
+| Duplicate ID | 0 |
+| Duplicate title (หลัง normalize) | 1 |
+| Title สั้นกว่า 15 ตัวอักษร | 7 |
+| ค่า score / comments / วันที่ ไม่ถูกต้อง | 0 |
+| **Final corpus** | **241** ✅ ผ่านเกณฑ์ ≥ 200 |
 
-**ความรับผิดชอบ:** เก็บด้วยโปรแกรม ไม่ copy-paste · ใช้ API สาธารณะ ไม่ต้องล็อกอิน ไม่ข้าม login/CAPTCHA/paywall · เก็บเฉพาะหัวข้อและตัวเลข engagement ไม่เก็บเนื้อหาคอมเมนต์ · อ้างอิงเงื่อนไขการใช้ API: `<ใส่ลิงก์>`
+**ช่วงเวลา:** 30 ก.ย. 2026 – 5 ต.ค. 2026 (UTC) · บันทึกเป็น `corpus.jsonl`
 
-> `fetch_hackernews()` (Firebase API) ในโน้ตบุ๊กเป็นโค้ดตัวอย่างจากเทมเพลต ไม่ได้ใช้รันจริง
+## 16. เทคนิควิเคราะห์
 
-```text
-จำนวน Valid Records : 250 รายการ      # ดึงได้ครบ ยังไม่ผ่าน clean
-```
+1. **Keyword-based Classification** — จัดหัวข้อเป็น Economic policy / Technology-law / International affairs / Multiple themes / Other ด้วย Regex แบบโปร่งใส (เป็นตัวแทนเชิงสำรวจ ไม่ใช่โมเดลที่เทรน)
+2. **Engagement Comparison** — เปรียบเทียบ Median ของ comments และ score เพราะทนต่อโพสต์ไวรัลผิดปกติ
 
----
+<img width="1185" height="613" alt="part3_theme_counts" src="https://github.com/user-attachments/assets/83bb127e-9dc9-4bc2-95ce-ab924c3b20d0" />
 
-<a id="s3"></a>
-## 3. Part 3.2 — ตรวจคุณภาพข้อมูล
+<img width="1185" height="613" alt="part3_median_comments" src="https://github.com/user-attachments/assets/d0c5fe27-32be-4d26-b46f-53640151862d" />
 
-ตัดตามลำดับ นับแต่ละแถวครั้งเดียว และ `assert` ว่า Final = ดึงได้ − ที่ตัดทั้งหมด
 
-| ขั้น | กฎ | ตัดออก | เหลือ |
-|---|---|---:|---:|
-| ดึงจาก API | – | – | 250 |
-| Missing | `doc_id`/`text` ว่างหรือ null-like | 0 | 250 |
-| Duplicate ID | `doc_id` ซ้ำ | 0 | 250 |
-| Duplicate title | หัวข้อซ้ำหลังทำเป็นตัวพิมพ์เล็กและยุบช่องว่าง | **3** | 247 |
-| Short title | ยาว < 15 ตัวอักษร (เกณฑ์ที่ทีมกำหนด) | 0 | 247 |
-| Invalid | score/comments ไม่ใช่ตัวเลขหรือติดลบ, วันที่แปลงไม่ได้ | 0 | **247** |
+| กลุ่ม | n | สัดส่วน | Median comments | Median score | รวม comments |
+|---|---:|---:|---:|---:|---:|
+| Economic policy | 1 | 0.4% | 302 | 606 | 302 |
+| **Technology / law** | **23** | **9.5%** | **47** | **115** | 3,314 |
+| International affairs | 1 | 0.4% | 59 | 172 | 59 |
+| Multiple themes | 3 | 1.2% | 292 | 129 | 816 |
+| Other / unclear | 213 | 88.4% | 38 | 90 | 18,964 |
 
-```text
-Coverage: 2008-03-07 through 2026-08-23 (UTC)
-Saved: corpus.jsonl
-PASS: 247 valid records (minimum 200)
-```
+> กลุ่มที่ n = 1 และ 3 ไม่ควรตีความค่ามัธยฐาน
 
-ช่วงเวลากว้างเกือบ 18 ปี มีผลต่อการเทียบ engagement (ดู[ข้อจำกัด](#s6))
+## 17. Insight Card
 
----
+> **Insight:** ในกลุ่มที่มีตัวอย่างพอ (n ≥ 20) หัวข้อ Technology / law มี median comments 47 สูงกว่ากลุ่ม Other / unclear ที่ 38 (ราว +24%) และ median score 115 เทียบกับ 90
+> **หลักฐาน:** Technology / law n = 23 vs Other n = 213 (ตารางหัวข้อ 16)
+> **So what:** หัวข้อกลุ่มนี้มีแนวโน้มเกิดการพูดคุยมากกว่าเล็กน้อย แต่เป็นสถิติเชิงพรรณนา ไม่ใช่ความเห็นสาธารณะ
+> **Action:** ตรวจชื่อโพสต์ในแต่ละกลุ่มด้วยตนเอง และเก็บข้อมูลหลายช่วงเวลา ก่อนสรุปเชิงบรรณาธิการ
+> **ความมั่นใจ:** ต่ำ — ส่วนต่างเล็ก, n = 23, ยังไม่มีการทดสอบทางสถิติ
 
-<a id="s4"></a>
-## 4. Part 3.3 — หา Insight
+**ข้อมูลชุดนี้ยังตอบไม่ได้:** ความเห็นสาธารณะของคนสาย Tech ทั้งหมด · ความสัมพันธ์เชิงเหตุและผล · ผลของอายุโพสต์ (score/comments สะสมตามเวลา)
 
-**เทคนิคที่ 1 — Keyword classification:** จัดหัวข้อด้วย regex เป็น *Economic policy* (tax, inflation, tariff, trade, budget…), *Technology / law* (privacy, AI, antitrust, regulation, surveillance…), *International affairs* (sanction, war, treaty, diplomacy…) ตรงหลายกลุ่ม → *Multiple themes*, ไม่ตรง → *Other / unclear* (ไม่ยัดเข้ากลุ่ม) เป็น proxy เชิงสำรวจ ไม่ใช่โมเดลที่ฝึก
+## 18. ข้อจำกัด Part 3
 
-**เทคนิคที่ 2 — Engagement comparison:** เทียบจำนวนโพสต์ มัธยฐานคอมเมนต์/คะแนน และคอมเมนต์รวมระหว่างกลุ่ม ใช้มัธยฐานเพื่อกันโพสต์ที่ดังผิดปกติ
-
-| กลุ่ม | โพสต์ | สัดส่วน | มัธยฐานคอมเมนต์ | มัธยฐานคะแนน | คอมเมนต์รวม | % ของคอมเมนต์* |
-|---|---:|---:|---:|---:|---:|---:|
-| Economic policy | 5 | 2.0% | 15.0 | 24.0 | 69 | 0.3% |
-| Technology / law | 22 | 8.9% | **52.5** | 50.0 | 3,305 | 14.9% |
-| International affairs | 3 | 1.2% | 46.0 | 69.0 | 176 | 0.8% |
-| Multiple themes | 0 | 0.0% | – | – | 0 | 0.0% |
-| Other / unclear | 217 | 87.9% | 34.0 | 47.0 | 18,649 | 84.0% |
-| **รวม** | **247** | 100% | | | 22,199 | 100% |
-
-\* คำนวณเพิ่มจากคอมเมนต์รวมที่โน้ตบุ๊กแสดง (ไม่ได้อยู่ในโค้ดของโน้ตบุ๊ก)
-
-**อ่านผล:** Technology / law สร้าง 14.9% ของคอมเมนต์จากโพสต์เพียง 8.9% · Economic policy (n = 5) กับ International affairs (n = 3) น้อยเกินกว่าจะเทียบ · ตัวอย่างสุ่ม 8 โพสต์ (`random_state=42`) แสดงว่าโพสต์ส่วนใหญ่เป็นเรื่องการเมืองในที่ทำงาน/สังคม ไม่ใช่ข่าวนโยบาย จึงไม่ตรง keyword
-
-**กราฟ**
-
-![Story counts by title theme](figures/part3_theme_counts.png)
-![Median comments by title theme](figures/part3_median_comments.png)
-
-**Insight Summary (output จากโน้ตบุ๊ก)**
-
-```text
-SO WHAT: Observed discussion levels differ across keyword groups in this API sample.
-         These are descriptive statistics, not an estimate of public opinion.
-ACTION: Manually review sample story titles in each group and collect results across
-        more dates before drawing editorial or policy conclusions.
-```
+- ข้อมูลเป็น **Top Stories ณ ช่วงเวลาหนึ่ง** ไม่ได้กรองด้วยคำค้น จึงไม่ใช่ตัวแทนข่าวการเมืองบน Hacker News
+- 88.4% ของโพสต์ไม่เข้ากฎ keyword ใดเลย (Other / unclear) และคำอย่าง `ai`, `tech` ทำให้กลุ่ม Technology / law สะท้อนข่าวเทคโนโลยีทั่วไป
+- กลุ่ม Economic policy และ International affairs มีเพียง 1 โพสต์ จึงเปรียบเทียบไม่ได้
+- ผู้ใช้ Hacker News ไม่ได้เป็นตัวแทนของคนทำงานสายเทคโนโลยีทั้งหมด
+- ช่วงเวลาเก็บข้อมูลสั้น (6 วัน) และโพสต์ใหม่ยังสะสม score / comments ไม่เต็มที่
 
 ---
 
-<a id="s5"></a>
-## 5. Part 3.4 — Insight Card
+## 19. สรุปสำหรับผู้บริหาร
 
-> ร่างจากผลรันจริง ให้ทีมตรวจแล้ววางลงเซลล์ 3.4
+1. **Marketing:** ใช้ *Sound Quality* เป็นข้อความหลักและ *Nostalgia* เป็นข้อความเสริม โดยเฉพาะกลุ่ม Classic Rock / Oldies แล้วพิสูจน์ด้วย A/B Test ก่อนลงงบจริง
+2. **อย่าอ้างเกินข้อมูล:** ผลทั้งหมดเป็นความสัมพันธ์เชิงพรรณนา จากกลุ่มตัวอย่างและ Regex ที่กำหนดเอง
+3. **ขั้นต่อไป:** ขยายพจนานุกรมคำสำคัญ เก็บข้อมูลหลายช่วงเวลา และเพิ่มการทดสอบทางสถิติ
 
-> **Insight:** ในโพสต์ HN ที่ค้นด้วย "politics" (n = 247) กลุ่ม Technology / law (n = 22, 8.9%) มีมัธยฐานคอมเมนต์ 52.5 สูงกว่า Other / unclear (34.0, n = 217) ราว 1.5 เท่า และสร้าง 14.9% ของคอมเมนต์ทั้งหมด \
-> **หลักฐาน:** ตารางผลลัพธ์และกราฟ "Median comments by title theme" ใน 3.3 \
-> **So what:** การเมืองที่เกี่ยวกับเทคโนโลยี/กฎหมาย (privacy, regulation, antitrust) ชวนถกเถียงในชุมชนสาย Tech ได้มากกว่าโพสต์ทั่วไปในตัวอย่าง แต่กลุ่มเปรียบเทียบอื่นมี n = 5 และ 3 จึงยังประเมินขนาดผลเป็นตัวเลขไม่ได้ \
-> **Action:** ทีมข้อมูลเก็บซ้ำอย่างน้อย 3 ช่วงเวลา/คำค้น แล้วดูว่า Technology / law ยังนำอยู่หรือไม่ · ทีมคอนเทนต์ทดลองทำเนื้อหาการเมืองสาย Tech 3–5 ชิ้น แล้วเทียบอัตราคอมเมนต์ต่อชิ้นกับเนื้อหาการเมืองทั่วไปของตน \
-> **ความมั่นใจ:** ต่ำ — กลุ่มเทียบมี n น้อย, 87.9% จัดกลุ่มไม่ได้, ข้อมูลกว้าง 18 ปีและคอมเมนต์ขึ้นกับอายุโพสต์
+**อ้างอิงข้อมูล:** [Amazon Reviews 2023 (McAuley Lab, UCSD)](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) · Hacker News API (Firebase)
 
-**ข้อมูลชุดนี้ยังตอบอะไรไม่ได้ / ต้องเพิ่มอะไร**
-
-| ยังตอบไม่ได้ | ต้องเพิ่ม |
-|---|---|
-| ความสนใจของคนสาย Tech โดยรวม | ข้อมูลผู้อ่านจากหลายแพลตฟอร์ม หรือแบบสำรวจ |
-| ทำไมบางประเด็นถึงถกเถียงมาก | ข้อความคอมเมนต์ + sentiment/topic |
-| แนวโน้มและการเทียบที่ยุติธรรมตามเวลา | เก็บหลายช่วงเวลา หรือกรองช่วงวันที่เท่ากัน |
-| ผลต่อ traffic ของสำนักข่าวจริง | ข้อมูลยอดอ่าน/คอมเมนต์ของสำนักข่าวเอง |
-| ความแม่นของการจัดกลุ่ม | ติดป้ายด้วยคนกับตัวอย่างชุดหนึ่ง |
-
----
-
-<a id="s6"></a>
-## 6. ข้อจำกัด
-
-- **คำค้น `politics`:** ได้เฉพาะโพสต์ที่มีคำนี้ และหลายโพสต์เป็นเรื่องการเมืองในที่ทำงาน ไม่ใช่ข่าวนโยบาย
-- **n ของกลุ่มน้อย:** Economic policy 5, International affairs 3, Multiple themes 0 เทียบกันไม่ได้
-- **Keyword:** 87.9% เป็น Other / unclear และอาจพลาดหรือซ้อนทับความหมายจริง ต้องให้คนตรวจก่อนใช้จริง
-- **อายุโพสต์:** ข้อมูลครอบคลุม 2008–2026 โพสต์เก่าสะสมคะแนนและคอมเมนต์ได้มากกว่า ปรับได้โดยจำกัดช่วงวันที่
-- **ความเป็นตัวแทน:** ผู้ใช้ HN ไม่ใช่ตัวแทนคนสาย Tech ทั้งหมด และเป็นสถิติเชิงพรรณนา ไม่ได้บอกเหตุและผล
-- **ข้อมูลส่วนบุคคล:** โค้ดเก็บ `author` ทั้งที่ไม่ได้ใช้ ควรตัดออกจาก `corpus.jsonl` ก่อนส่ง
-
----
-
-<a id="s7"></a>
-## 7. แผนที่ Notebook ↔ README
-
-| เซลล์ใน Notebook | เนื้อหา | อยู่ที่ |
-|---|---|---|
-| 3.1 แบบฟอร์ม (แหล่งข้อมูล/คำถาม/1 record/field) | ตารางข้อมูลโครงงาน, Fields | [ข้อ 2](#s2) |
-| 3.1 `fetch_political_news()` | พารามิเตอร์ API, output 250 รายการ | [ข้อ 2](#s2) |
-| 3.2 Data Quality Check (ข้อความ) | ตารางกฎและ Funnel | [ข้อ 3](#s3) |
-| 3.2 CELL 1 – Data Cleaning / CELL 2 – Quality Report | ตัวเลขที่ตัด, coverage, PASS | [ข้อ 3](#s3) |
-| 3.3 Text Analytics and Business Insight (ข้อความ) | คำอธิบายเทคนิค 2 อย่าง | [ข้อ 4](#s4) |
-| 3.3 CELL 1 – Analysis Techniques | ตารางผลลัพธ์ + ตัวอย่างสุ่ม | [ข้อ 4](#s4) |
-| 3.3 CELL 2 – Charts | กราฟ 2 รูป | [ข้อ 4](#s4) |
-| 3.3 CELL 3 – Insight Summary | SO WHAT / ACTION | [ข้อ 4](#s4) |
-| 3.4 Insight Card | การ์ด + ตาราง "ยังตอบไม่ได้" | [ข้อ 5](#s5) |
-
----
-
-<a id="s8"></a>
-## 8. วิธีรันซ้ำและเช็คลิสต์ก่อนส่ง
-
-**รัน:** Colab · `pandas`, `numpy`, `matplotlib` · ลำดับ 3.1 → 3.2 CELL 1–2 → 3.3 CELL 1–3 (3.3 อ่านจาก `corpus.jsonl`) · ผล Algolia เปลี่ยนตามเวลา ตัวเลขในเอกสารนี้อิงรอบที่บันทึกไว้ใน `corpus.jsonl`
-
-```text
-├── README.md
-├── <Notebook งานกลุ่ม>.ipynb
-├── corpus.jsonl
-└── figures/  (part3_theme_counts.png, part3_median_comments.png)
-```
-
-| ก่อนส่ง | ✓ |
-|---|---|
-| แทน `[รอผลรัน]` ในข้อความ 3.2 ด้วยค่าจริง (Dup title 3 · Final 247 · 2008-03-07 ถึง 2026-08-23) | ☐ |
-| วาง Insight Card ลงเซลล์ 3.4 | ☐ |
-| ลบเซลล์เทมเพลต "Your code here" ที่ค้างใน 3.2 | ☐ |
-| ระบุผู้รับผิดชอบแต่ละส่วนที่หน้าแรกของ Notebook | ☐ |
-| ตัด `author` ออกจาก `corpus.jsonl` หรือชี้แจงเหตุผล | ☐ |
-| สไลด์ 10 นาที มีสไลด์ AI usage · ทุกคนอธิบายส่วนของตนได้ | ☐ |
 
 
