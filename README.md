@@ -82,5 +82,6 @@
 | Field อื่นที่เก็บ | `doc_id` `text(หัวข้อ)` `score` `n_comments` `published_at` |
 
 **อ้างอิงข้อมูลPart3:** [Hacker News](https://news.ycombinator.com/)
+**canva link:** https://canva.link/3elfqcj3ufhl8ax
 
 
