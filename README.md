@@ -43,7 +43,6 @@
 | **Load** | `df_joined` พร้อม feature | `corpus.jsonl` (ใช้ซ้ำโดยไม่ต้องเรียก API ใหม่) |
 | **Analytics** | เปรียบเทียบสัดส่วนการพูดถึง (Mention Rate) | เปรียบเทียบค่ามัธยฐาน (Median) ของ score / comments |
 
-**ที่มา:Amazon Reviews 2023 หมวด Digital_Music
 ---
 
 # Part 2 — Voice of Customer (Digital Music)
@@ -58,6 +57,7 @@
  *"ความทรงจำ/ความประทับใจในอดีต (Nostalgia)"* และ*"คุณภาพเสียงความคมชัดสูง(Crystal Clear Sound Quality)"*
  ซึ่งเป็น2ประเด็นหลักที่นำมาทำAd Copyแล้วได้ผลดีที่สุด
 
+**ที่มา:Amazon Reviews 2023 หมวด Digital_Music
 
 ---
 
